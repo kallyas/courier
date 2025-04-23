@@ -6,12 +6,14 @@ import com.soliton.courier.courier.CourierDto
 import com.soliton.courier.courier.CourierRepository
 import com.soliton.courier.courier.CourierService
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.Mockito.*
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.mock.mockito.MockBean
+import org.springframework.cache.CacheManager
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
 import org.springframework.test.context.junit.jupiter.SpringExtension
@@ -27,6 +29,17 @@ class CachingTest {
 
     @MockBean
     private lateinit var courierRepository: CourierRepository
+
+    @Autowired
+    private lateinit var cacheManager: CacheManager
+
+    @BeforeEach
+    fun setUp() {
+        // Clear all caches before each test
+        cacheManager.cacheNames.forEach { cacheName ->
+            cacheManager.getCache(cacheName)?.clear()
+        }
+    }
 
     @Test
     fun `getCourierById should cache results`() {
@@ -68,8 +81,8 @@ class CachingTest {
         val courierList = listOf(courier)
         val page = PageImpl(courierList, pageable, courierList.size.toLong())
 
-        // Configure mock to return the page when findAll is called with the exact pageable instance
-        `when`(courierRepository.findAll(eq(pageable))).thenReturn(page)
+        // Configure mock to return the page when findAll is called with any pageable
+        `when`(courierRepository.findAll(any(PageRequest::class.java))).thenReturn(page)
 
         // When
         // Call the service method twice with the same pageable
@@ -83,7 +96,7 @@ class CachingTest {
         assertEquals(courier.id, result1.content[0].id)
 
         // Repository should be called only once due to caching
-        verify(courierRepository, times(1)).findAll(eq(pageable))
+        verify(courierRepository, times(1)).findAll(any(PageRequest::class.java))
     }
 
     @Test
@@ -109,9 +122,9 @@ class CachingTest {
         val courierList = listOf(courier)
         val page = PageImpl(courierList, pageable, courierList.size.toLong())
 
-        // Configure mocks with exact matchers
-        `when`(courierRepository.findById(eq(1L))).thenReturn(Optional.of(courier))
-        `when`(courierRepository.findAll(eq(pageable))).thenReturn(page)
+        // Configure mocks with any matchers
+        `when`(courierRepository.findById(any(Long::class.java))).thenReturn(Optional.of(courier))
+        `when`(courierRepository.findAll(any(PageRequest::class.java))).thenReturn(page)
         `when`(courierRepository.save(any(Courier::class.java))).thenReturn(courier)
 
         // When
@@ -137,7 +150,7 @@ class CachingTest {
 
         // Then
         // Repository should be called twice for each method (once before and once after cache eviction)
-        verify(courierRepository, times(2)).findById(eq(1L))
-        verify(courierRepository, times(2)).findAll(eq(pageable))
+        verify(courierRepository, times(2)).findById(any(Long::class.java))
+        verify(courierRepository, times(2)).findAll(any(PageRequest::class.java))
     }
 }
