@@ -19,6 +19,9 @@ data class Courier(
     @Column(nullable = false)
     var vehicle: String,
 
+    @Column(nullable = true)
+    var email: String? = null,
+
     @Column(name = "created_at", updatable = false)
     val createdAt: LocalDateTime = LocalDateTime.now(),
 
