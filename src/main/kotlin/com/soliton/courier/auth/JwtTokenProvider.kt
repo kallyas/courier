@@ -5,6 +5,7 @@ import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.SignatureAlgorithm
 import io.jsonwebtoken.io.Decoders
 import io.jsonwebtoken.security.Keys
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.stereotype.Component
@@ -15,14 +16,21 @@ import java.util.function.Function
 @Component
 class JwtTokenProvider {
 
+    private val logger = LoggerFactory.getLogger(JwtTokenProvider::class.java)
+
     @Value("\${spring.security.jwt.secret}")
     private lateinit var secretKey: String
 
     @Value("\${spring.security.jwt.expiration}")
     private val jwtExpirationMs: Long = 3600000 // 1 hour
 
-    fun extractUsername(token: String): String {
-        return extractClaim(token, Claims::getSubject)
+    fun extractUsername(token: String): String? {
+        return try {
+            extractClaim(token, Claims::getSubject)
+        } catch (e: Exception) {
+            logger.error("Error extracting username from token: ${e.message}", e)
+            null
+        }
     }
 
     fun <T> extractClaim(token: String, claimsResolver: Function<Claims, T>): T {
@@ -46,25 +54,46 @@ class JwtTokenProvider {
     }
 
     fun isTokenValid(token: String, userDetails: UserDetails): Boolean {
-        val username = extractUsername(token)
-        return (username == userDetails.username) && !isTokenExpired(token)
+        try {
+            val username = extractUsername(token)
+            return (username == userDetails.username) && !isTokenExpired(token)
+        } catch (e: Exception) {
+            logger.error("Error validating token: ${e.message}", e)
+            return false
+        }
     }
 
     private fun isTokenExpired(token: String): Boolean {
-        return extractExpiration(token).before(Date())
+        try {
+            return extractExpiration(token).before(Date())
+        } catch (e: Exception) {
+            logger.error("Error checking token expiration: ${e.message}", e)
+            return true  // Consider expired if there's an error
+        }
     }
 
     private fun extractExpiration(token: String): Date {
-        return extractClaim(token, Claims::getExpiration)
+        try {
+            return extractClaim(token, Claims::getExpiration)
+        } catch (e: Exception) {
+            logger.error("Error extracting expiration from token: ${e.message}", e)
+            throw e
+        }
     }
 
     private fun extractAllClaims(token: String): Claims {
-        return Jwts
-            .parserBuilder()
-            .setSigningKey(getSignInKey())
-            .build()
-            .parseClaimsJws(token)
-            .body
+        try {
+            return Jwts
+                .parserBuilder()
+                .setSigningKey(getSignInKey())
+                .build()
+                .parseClaimsJws(token)
+                .body
+        } catch (e: Exception) {
+            // Log the exception for debugging purposes
+            logger.error("Error parsing JWT token: ${e.message}", e)
+            throw e
+        }
     }
 
     private fun getSignInKey(): Key {
