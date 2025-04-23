@@ -105,12 +105,6 @@ class CourierServiceTest {
     @Test
     fun `createCourier should return created courier DTO`() {
         // Given
-        val newCourier = Courier(
-            name = "John Doe",
-            phone = "+1234567890",
-            vehicle = "CAR",
-            email = "john.doe@example.com"
-        )
         val savedCourier = Courier(
             id = 1L,
             name = "John Doe",
